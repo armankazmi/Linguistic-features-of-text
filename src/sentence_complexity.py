@@ -1,6 +1,5 @@
 import re
 import numpy as np
-import stanza
 from nltk.tree import ParentedTree
 from stanfordcorenlp import StanfordCoreNLP
 

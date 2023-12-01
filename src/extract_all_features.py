@@ -8,7 +8,12 @@ from src.lexical_diversity import LexicalDiversity
 
 
 class Features:
-    def __init__(self, para_list, nlp_pipeline, remove_punctuations=True):
+    def __init__(
+        self,
+        para_list,
+        nlp_pipeline,
+        remove_punctuations=True,
+    ):
         self.para_list = para_list
         self.nlp_pipeline = nlp_pipeline
         self.corenlp_resource = "resources/stanford-corenlp-full-2018-02-27"
@@ -55,8 +60,14 @@ class Features:
         return corenlp
 
     def _extract_features(self, choice):
-        if choice == "all_feats":
-            pass
+        if choice == "all":
+            output = []
+            for para, doc in zip(self.para_list, self.docs):
+                temp = self._raw_features(doc)
+                temp.update(self._lexical_features(para, doc))
+                temp.update(self._pos_features(doc))
+                temp.update(self._syntactic_features(doc))
+                output.append(temp)
         else:
             if choice == "raw":
                 output = [self._raw_features(doc) for doc in self.docs]
@@ -86,7 +97,9 @@ class Features:
             pos_counts[key] for key in ["noun", "verb", "adjective", "adverb"]
         )
         function_words = sum(pos_counts[key] for key in ["pronoun", "others"])
-        ld_measures["lexical_density"] = self.safe_divide(content_words, function_words)
+        ld_measures["content/function"] = self.safe_divide(
+            content_words, function_words
+        )
         return ld_measures
 
     def _pos_features(self, doc):
@@ -142,7 +155,9 @@ class Features:
         )
         if self.remove_punctuations:
             # Removing punctuations
-            pre_processed_sen_list = [self._pre_process(sentence) for sentence in sentence_list]
+            pre_processed_sen_list = [
+                self._pre_process(sentence) for sentence in sentence_list
+            ]
             in_docs = [stanza.Document([], text=s) for s in pre_processed_sen_list]
             pre_processed_sen_docs = self.nlp_pipeline(in_docs)
             # ISC Score
@@ -157,8 +172,10 @@ class Features:
             ]
             # Depth of a sentence
             corenlp = self.initialize_corenlp(self.corenlp_resource)
-            avg_depth_scores = [self._depth(sen, corenlp) for sen in pre_processed_sen_list]
-            
+            avg_depth_scores = [
+                self._depth(sen, corenlp) for sen in pre_processed_sen_list
+            ]
+
             # Dependency relations & bigrams
             dep_feats = {}
             for processed_doc in pre_processed_sen_docs:
@@ -168,7 +185,7 @@ class Features:
                         dep_feats[key] += val
                     else:
                         dep_feats[key] = val
-        '''
+        """
         else:
             # ISC Score
             isc_scores = [self._isc(sentence) for sentence in doc.sentences]
@@ -176,7 +193,7 @@ class Features:
             add_scores = [self._add(sentence) for sentence in doc.sentences]
             # Dependency relations & bigrams
             dep_feats = {}
-        '''
+        """
         output = {}
         output["Mean ISC Score"] = np.mean(isc_scores)
         output["Std ISC Score"] = np.std(isc_scores)
@@ -184,7 +201,7 @@ class Features:
         output["Std ADD Score"] = np.std(add_scores)
         output["mean para depth"] = np.mean(avg_depth_scores)
         output["Std para depth"] = np.std(avg_depth_scores)
-        output['dependency features'] = dep_feats
+        output["dependency features"] = dep_feats
         return output
 
     """ISC, Reference:- https://web.stanford.edu/~bresnan/LabSyntax/szmrecsanyi-syntactic.complexity.pdf"""
@@ -251,17 +268,22 @@ class Features:
             depths.append(count)
         depth_score = np.mean(depths)
         return depth_score
-    
-    '''Dependency Relations and Bigrams features'''
+
+    """Dependency Relations and Bigrams features"""
+
     def _dependency_features(self, sentence_doc):
         trigrams = []
         relations = []
         for word in sentence_doc.words:
-            if word.deprel != 'root':
+            if word.deprel != "root":
                 relations.append(word.deprel)
-                if word.id > word.head: position = 'before'
-                else: position = 'after'
-                feat = str((sentence_doc.words[word.head-1].upos, word.upos, position))
+                if word.id > word.head:
+                    position = "before"
+                else:
+                    position = "after"
+                feat = str(
+                    (sentence_doc.words[word.head - 1].upos, word.upos, position)
+                )
                 trigrams.append(feat)
         rel_bi = nltk.FreqDist(relations)
         dep_tri = nltk.FreqDist(trigrams)

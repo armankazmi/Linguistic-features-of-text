@@ -1,8 +1,10 @@
 import time
+import pickle
 import stanza
 import numpy as np
 import pandas as pd
 from src.extract_all_features import Features
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 
 # Example usage
@@ -66,12 +68,6 @@ if __name__ == "__main__":
     finish_time = time.perf_counter()
     print(f"Finished in {finish_time-start_time} seconds")
 
-    # Making the predictions
-    import pickle
-
-    with open("resources/final_model.pkl", "rb") as fp:
-        model = pickle.load(fp)
-
     # best 28 features
     best_feat = [
         "TTR",
@@ -104,6 +100,14 @@ if __name__ == "__main__":
         "content/function",
     ]
 
+    # Prediction using Logistic Regression model
+    print()
+    print("Prediction using Logistic Regression model. ")
+    print()
+
+    with open("resources/lr_final_model.pkl", "rb") as fp:
+        model = pickle.load(fp)
+
     for para_features in feature_values:
         dependency_features = {
             i: j
@@ -128,5 +132,46 @@ if __name__ == "__main__":
             "The given paragraph is ",
             tag,
             " with a probabilty of {:.3f}".format(prob * 100),
+            "%",
+        )
+
+    # Prediction using Bert Model
+    print()
+    print("Prediction using BERT model. ")
+    print()
+
+    def get_prediction(text, tokenizer, model):
+        # prepare our text into tokenized sequence
+        inputs = tokenizer(
+            text, padding=True, truncation=True, max_length=512, return_tensors="pt"
+        )
+        # perform inference to our model
+        outputs = model(**inputs)
+        # print(outputs[0].softmax(1).cpu().detach().numpy()[0][1])
+        # get output probabilities by doing softmax
+        probs = outputs[0].softmax(1)
+        fiction_probability = probs.detach().numpy()[0][1]
+        tag = (
+            ("fiction", fiction_probability)
+            if fiction_probability > 0.5
+            else ("non_fiction", 1 - fiction_probability)
+        )
+        # executing argmax function to get the candidate label
+        return tag
+
+    bert_path = "resources/bert_fine_tuned/"
+    classification_tokenizer = AutoTokenizer.from_pretrained(
+        bert_path
+    )  # , truncate=True, max_len=max_len)
+    classification_model = AutoModelForSequenceClassification.from_pretrained(bert_path)
+
+    for para in para_list:
+        prediction = get_prediction(
+            para, classification_tokenizer, classification_model
+        )
+        print(
+            "The given paragraph is ",
+            prediction[0],
+            " with a probabilty of {:.3f}".format(prediction[1] * 100),
             "%",
         )
